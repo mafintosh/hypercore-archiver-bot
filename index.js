@@ -62,14 +62,18 @@ function add (key) {
   console.log('Adding', key.toString('hex'))
   client.say(argv.channel, 'Adding ' +  key.toString('hex'))
   disc.join(ar.discoveryKey(key), server.address().port)
-  ar.add(key)
+  ar.add(key, onerror)
 }
 
 function remove (key) {
   console.log('Removing', key.toString('hex'))
   client.say(argv.channel, 'Removing ' +  key.toString('hex'))
   disc.leave(ar.discoveryKey(key), server.address().port)
-  ar.remove(key)
+  ar.remove(key, onerror)
+}
+
+function onerror (err) {
+  if (err) client.say(argv.channel, 'Error: ' + err.message)
 }
 
 function parse (message) {
