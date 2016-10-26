@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 var archiver = require('hypercore-archiver')
 var irc = require('irc')
 var mkdirp = require('mkdirp')
