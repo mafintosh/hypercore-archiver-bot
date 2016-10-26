@@ -60,12 +60,14 @@ client.on('message', function (from, to, message) {
 
 function add (key) {
   console.log('Adding', key.toString('hex'))
+  client.say(argv.channel, 'Adding ' +  key.toString('hex'))
   disc.join(ar.discoveryKey(key), server.address().port)
   ar.add(key)
 }
 
 function remove (key) {
   console.log('Removing', key.toString('hex'))
+  client.say(argv.channel, 'Removing ' +  key.toString('hex'))
   disc.leave(ar.discoveryKey(key), server.address().port)
   ar.remove(key)
 }
