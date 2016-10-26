@@ -58,6 +58,10 @@ client.on('message', function (from, to, message) {
   }
 })
 
+ar.on('archived', function (key) {
+  client.say(argv.channel, key.toString('hex') + ' has been fully archived')
+})
+
 function add (key) {
   console.log('Adding', key.toString('hex'))
   client.say(argv.channel, 'Adding ' +  key.toString('hex'))
