@@ -7,6 +7,7 @@ var minimist = require('minimist')
 var disc = require('discovery-channel')({hash: false})
 var net = require('net')
 var pump = require('pump')
+var prettyBytes = require('pretty-bytes')
 
 var argv = minimist(process.argv.slice(2), {
   alias: {
@@ -58,8 +59,8 @@ client.on('message', function (from, to, message) {
   }
 })
 
-ar.on('archived', function (key) {
-  client.say(argv.channel, key.toString('hex') + ' has been fully archived')
+ar.on('archived', function (key, feed) {
+  client.say(argv.channel, key.toString('hex') + ' has been fully archived (' + prettyBytes(feed.bytes) + ')')
 })
 
 function add (key) {
