@@ -46,7 +46,9 @@ server.listen(argv.port, function () {
 })
 
 var client = new irc.Client(argv.server, argv.name, {
-  channels: [argv.channel]
+  channels: [argv.channel],
+  retryCount: 1000,
+  autoRejoin: true
 })
 
 client.on('message', function (from, to, message) {
@@ -83,7 +85,10 @@ function onerror (err) {
 
 function parse (message) {
   message = message.trim()
-  if (message.indexOf(argv.name + ':') !== 0) return null
+
+  var name = (message.indexOf(':') > -1 ? message.split(':')[0] : '').trim().replace(/\d+$/, '')
+  if (name !== argv.name) return null
+
   message = message.split(':').pop().trim()
   if (message.indexOf(' ') === -1) return parse('add ' + message)
   var parts = message.split(' ')
