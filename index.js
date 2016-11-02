@@ -86,8 +86,12 @@ function onerror (err) {
 function parse (message) {
   message = message.trim()
 
-  var name = (message.indexOf(':') > -1 ? message.split(':')[0] : '').trim().replace(/\d+$/, '')
-  if (name !== argv.name) return null
+  if (message[0] === '!') {
+    message = message.slice(1)
+  } else {
+    var name = (message.indexOf(':') > -1 ? message.split(':')[0] : '').trim().replace(/\d+$/, '')
+    if (name !== argv.name) return null
+  }
 
   message = message.split(':').pop().trim()
   if (message.indexOf(' ') === -1) return parse('add ' + message)
