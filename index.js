@@ -8,6 +8,7 @@ var disc = require('discovery-channel')({hash: false})
 var net = require('net')
 var pump = require('pump')
 var prettyBytes = require('pretty-bytes')
+var prettyTime = require('pretty-time')
 
 var argv = minimist(process.argv.slice(2), {
   alias: {
@@ -27,6 +28,7 @@ var argv = minimist(process.argv.slice(2), {
 
 mkdirp.sync(argv.cwd)
 
+var started = process.hrtime()
 var ar = archiver(argv.cwd)
 var server = net.createServer(function (socket) {
   pump(socket, ar.replicate(), socket)
@@ -58,12 +60,26 @@ client.on('message', function (from, to, message) {
     case 'add': return add(new Buffer(op.key, 'hex'))
     case 'rm':
     case 'remove': return remove(new Buffer(op.key, 'hex'))
+    case 'status': return status()
   }
 })
 
 ar.on('archived', function (key, feed) {
   client.say(argv.channel, key.toString('hex') + ' has been fully archived (' + prettyBytes(feed.bytes) + ')')
 })
+
+function status () {
+  var cnt = 0
+  ar.list().on('data', ondata).on('end', reply).on('error', onerror)
+
+  function ondata () {
+    cnt++
+  }
+
+  function reply () {
+    client.say(argv.channel, 'Uptime: ' + prettyTime(process.hrtime(started)) + '. Archiving ' + cnt + ' hypercores')
+  }
+}
 
 function add (key) {
   console.log('Adding', key.toString('hex'))
