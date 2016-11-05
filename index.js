@@ -110,7 +110,7 @@ function parse (message) {
   }
 
   message = message.split(':').pop().trim()
-  if (message.indexOf(' ') === -1) return parse('add ' + message)
+  if (message.indexOf(' ') === -1) return {command: message, key: null}
   var parts = message.split(' ')
   if (!/^[0-9a-f]{64}$/.test(parts[1])) return null
   return {
