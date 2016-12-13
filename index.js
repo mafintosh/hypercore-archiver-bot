@@ -32,7 +32,7 @@ mkdirp.sync(argv.cwd)
 var started = process.hrtime()
 var ar = archiver(argv.cwd)
 var server = net.createServer(function (socket) {
-  pump(socket, ar.replicate(), socket)
+  pump(socket, ar.replicate({passive: true}), socket)
 })
 
 server.listen(argv.port, function () {
