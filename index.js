@@ -45,28 +45,50 @@ server.listen(argv.port, function () {
     }
   })
 
-  console.log('Listening on port', server.address().port)
+  ar.changes(function (err, feed) {
+    if (err) throw err
+    console.log('Changes feed available at: ' + feed.key.toString('hex'))
+    console.log('Listening on port', server.address().port)
+  })
 })
 
-var client = new irc.Client(argv.server, argv.name, {
-  channels: [argv.channel],
-  retryCount: 1000,
-  autoRejoin: true
-})
+var client = null
 
-client.on('message', function (from, to, message) {
-  var op = parse(message)
-  if (!op) return
-  switch (op.command) {
-    case 'add': return add(new Buffer(op.key, 'hex'))
-    case 'rm':
-    case 'remove': return remove(new Buffer(op.key, 'hex'))
-    case 'status': return status()
-  }
-})
+if (argv.channel) {
+  client = new irc.Client(argv.server, argv.name, {
+    channels: [argv.channel],
+    retryCount: 1000,
+    autoRejoin: true
+  })
+
+  client.on('message', function (from, to, message) {
+    var op = parse(message)
+    if (!op) return
+    switch (op.command) {
+      case 'add': return add(new Buffer(op.key, 'hex'))
+      case 'rm':
+      case 'remove': return remove(new Buffer(op.key, 'hex'))
+      case 'status': return status()
+    }
+  })
+}
 
 ar.on('archived', function (key, feed) {
-  client.say(argv.channel, key.toString('hex') + ' has been fully archived (' + prettyBytes(feed.bytes) + ')')
+  var msg = key.toString('hex') + ' has been fully archived (' + prettyBytes(feed.bytes) + ')'
+  if (client) client.say(argv.channel, msg)
+  console.log(msg)
+})
+
+ar.on('remove', function (key) {
+  console.log('Removing', key.toString('hex'))
+  if (client) client.say(argv.channel, 'Removing ' + key.toString('hex'))
+  disc.leave(ar.discoveryKey(key), server.address().port)
+})
+
+ar.on('add', function (key) {
+  console.log('Adding', key.toString('hex'))
+  if (client) client.say(argv.channel, 'Adding ' + key.toString('hex'))
+  disc.join(ar.discoveryKey(key), server.address().port)
 })
 
 function status () {
@@ -83,21 +105,18 @@ function status () {
 }
 
 function add (key) {
-  console.log('Adding', key.toString('hex'))
-  client.say(argv.channel, 'Adding ' + key.toString('hex'))
-  disc.join(ar.discoveryKey(key), server.address().port)
   ar.add(key, onerror)
 }
 
 function remove (key) {
-  console.log('Removing', key.toString('hex'))
-  client.say(argv.channel, 'Removing ' + key.toString('hex'))
-  disc.leave(ar.discoveryKey(key), server.address().port)
   ar.remove(key, onerror)
 }
 
 function onerror (err) {
-  if (err) client.say(argv.channel, 'Error: ' + err.message)
+  if (err) {
+    console.error('Error: ' + err.message)
+    if (client) client.say(argv.channel, 'Error: ' + err.message)
+  }
 }
 
 function parse (message) {
