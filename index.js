@@ -47,6 +47,7 @@ server.listen(argv.port, function () {
 
   ar.changes(function (err, feed) {
     if (err) throw err
+    disc.join(feed.discoveryKey, server.address().port)
     console.log('Changes feed available at: ' + feed.key.toString('hex'))
     console.log('Listening on port', server.address().port)
   })
