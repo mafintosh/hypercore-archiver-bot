@@ -10,6 +10,7 @@ var net = require('net')
 var pump = require('pump')
 var prettyBytes = require('pretty-bytes')
 var prettyTime = require('pretty-time')
+var extend = require('xtend')
 
 var argv = minimist(process.argv.slice(2), {
   alias: {
@@ -56,10 +57,17 @@ server.listen(argv.port, function () {
 var client = null
 
 if (argv.channel) {
-  client = new irc.Client(argv.server, argv.name, {
+  var ircOpts = extend({}, argv, {
     channels: [argv.channel],
     retryCount: 1000,
     autoRejoin: true
+  })
+
+  console.log('Connecting to IRC', argv.server)
+  client = new irc.Client(argv.server, argv.name, ircOpts)
+
+  client.on('registered', function (msg) {
+    console.log('Connected to IRC, listening for messages')
   })
 
   client.on('message', function (from, to, message) {

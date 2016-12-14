@@ -15,7 +15,8 @@
     "mkdirp": "^0.5.1",
     "pretty-bytes": "^4.0.2",
     "pretty-time": "^0.2.0",
-    "pump": "^1.0.1"
+    "pump": "^1.0.1",
+    "xtend": "^4.0.1"
   },
   "devDependencies": {
     "standard": "^8.5.0"
