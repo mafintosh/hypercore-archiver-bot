@@ -32,6 +32,7 @@ var argv = minimist(process.argv.slice(2), {
 mkdirp.sync(argv.cwd)
 
 var started = process.hrtime()
+var pending = []
 var ar = archiver(argv.cwd)
 var server = net.createServer(function (socket) {
   pump(socket, ar.replicate({passive: true}), socket)
@@ -65,7 +66,7 @@ if (argv.channel) {
   })
   ircOpts.port = argv.ircPort
 
-  console.log('Connecting to IRC', argv.server)
+  console.log('Connecting to IRC', argv.server, 'as', argv.name)
   client = new irc.Client(argv.server, argv.name, ircOpts)
 
   client.on('registered', function (msg) {
@@ -75,58 +76,93 @@ if (argv.channel) {
   client.on('message', function (from, to, message) {
     var op = parse(message)
     if (!op) return
+    var channel = (to === argv.name) ? from : argv.channel
+    var key = op.key
     switch (op.command) {
-      case 'add': return add(new Buffer(op.key, 'hex'))
+      case 'add':
+        pending.push({key: key, channel: channel})
+        ar.add(new Buffer(key, 'hex'), function (err) {
+          if (err) return sendMessage(err, channel)
+          sendMessage(null, channel, 'Adding ' + key)
+        })
+        return
       case 'rm':
-      case 'remove': return remove(new Buffer(op.key, 'hex'))
-      case 'status': return status()
+      case 'remove':
+        pending = pending.filter(function(obj) {
+          // remove meta keys + content keys
+          return obj.key !== key && obj.metaKey !== key
+        })
+        ar.remove(new Buffer(key, 'hex'), function (err) {
+          if (err) return sendMessage(err, channel)
+          sendMessage(null, channel, 'Removing ' + key)
+        })
+        return
+      case 'status':
+        status(function (err, msg) {
+          sendMessage(err, channel, msg)
+        })
+        return
     }
   })
+
+  function sendMessage (err, channel, msg) {
+    if (err) return client.say(channel, 'Error: ' + err.message)
+    client.say(channel, msg)
+  }
 }
 
 ar.on('archived', function (key, feed) {
-  var msg = key.toString('hex') + ' has been fully archived (' + prettyBytes(feed.bytes) + ')'
-  if (client) client.say(argv.channel, msg)
-  console.log(msg)
+  key = key.toString('hex')
+  console.log('Feed archived', key)
+  pending = pending.filter(function (obj) {
+    if (key !== obj.key) return true
+    if (!obj.metaKey) {
+      waitForContent()
+      return true
+    }
+    done(obj.metaKey, feed)
+    return false
+  })
+
+  function waitForContent () {
+    ar.get(key, function (err, feed, content) {
+      if (!content) return done(key, feed)
+      pending.push({key: content.key.toString('hex'), metaKey: key.toString('hex')})
+    })
+  }
+
+  function done (key, feed) {
+    pending = pending.filter(function (obj) {
+      if (key !== obj.key) return true
+      if (key === obj.metaKey) return false // remove content key from pending
+      var msg = key + ' has been fully archived (' + prettyBytes(feed.bytes) + ')'
+      if (client) client.say(obj.channel, msg)
+      console.log(msg)
+      return false // remove meta key from pending
+    })
+  }
 })
 
 ar.on('remove', function (key) {
   console.log('Removing', key.toString('hex'))
-  if (client) client.say(argv.channel, 'Removing ' + key.toString('hex'))
   disc.leave(ar.discoveryKey(key), server.address().port)
 })
 
 ar.on('add', function (key) {
   console.log('Adding', key.toString('hex'))
-  if (client) client.say(argv.channel, 'Adding ' + key.toString('hex'))
   disc.join(ar.discoveryKey(key), server.address().port)
 })
 
-function status () {
+function status (cb) {
   var cnt = 0
-  ar.list().on('data', ondata).on('end', reply).on('error', onerror)
+  ar.list().on('data', ondata).on('end', reply).on('error', cb)
 
   function ondata () {
     cnt++
   }
 
   function reply () {
-    client.say(argv.channel, 'Uptime: ' + prettyTime(process.hrtime(started)) + '. Archiving ' + cnt + ' hypercores')
-  }
-}
-
-function add (key) {
-  ar.add(key, onerror)
-}
-
-function remove (key) {
-  ar.remove(key, onerror)
-}
-
-function onerror (err) {
-  if (err) {
-    console.error('Error: ' + err.message)
-    if (client) client.say(argv.channel, 'Error: ' + err.message)
+    cb(null, 'Uptime: ' + prettyTime(process.hrtime(started)) + '. Archiving ' + cnt + ' hypercores')
   }
 }
 
