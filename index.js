@@ -62,6 +62,7 @@ if (argv.channel) {
     retryCount: 1000,
     autoRejoin: true
   })
+  ircOpts.port = argv.ircPort
 
   console.log('Connecting to IRC', argv.server)
   client = new irc.Client(argv.server, argv.name, ircOpts)
