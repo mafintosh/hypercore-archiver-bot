@@ -18,7 +18,8 @@ var argv = minimist(process.argv.slice(2), {
     cwd: 'd',
     server: 's',
     name: 'n',
-    port: 'p'
+    port: 'p',
+    ircPort: 'irc-port'
   },
   default: {
     port: 3282,
