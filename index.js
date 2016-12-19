@@ -103,7 +103,7 @@ if (argv.channel) {
             if (err) return sendMessage(err, channel)
             var need = status.need
             var have = status.have
-            var progress = '%' + (have / need) * 100
+            var progress = (have / need) * 100
             sendMessage(null, channel, `Status ${key}: need ${need}, have ${have}, %${progress}`)
           })
         }
