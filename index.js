@@ -88,7 +88,7 @@ if (argv.channel) {
         return
       case 'rm':
       case 'remove':
-        pending = pending.filter(function(obj) {
+        pending = pending.filter(function (obj) {
           // remove meta keys + content keys
           return obj.key !== key && obj.metaKey !== key
         })
@@ -98,17 +98,25 @@ if (argv.channel) {
         })
         return
       case 'status':
-        status(function (err, msg) {
+        if (key) {
+          return statusKey(key, function (err, status) {
+            if (err) return sendMessage(err, channel)
+            var need = status.need
+            var have = status.have
+            var progress = '%' + (have / need) * 100
+            sendMessage(null, channel, `Status ${key}: need ${need}, have ${have}, %${progress}`)
+          })
+        }
+        return status(function (err, msg) {
           sendMessage(err, channel, msg)
         })
-        return
     }
   })
+}
 
-  function sendMessage (err, channel, msg) {
-    if (err) return client.say(channel, 'Error: ' + err.message)
-    client.say(channel, msg)
-  }
+function sendMessage (err, channel, msg) {
+  if (err) return client.say(channel, 'Error: ' + err.message)
+  client.say(channel, msg)
 }
 
 ar.on('archived', function (key, feed) {
@@ -125,7 +133,7 @@ ar.on('archived', function (key, feed) {
   })
 
   function waitForContent () {
-    ar.get(key, function (err, feed, content) {
+    ar.get(key, function (_, feed, content) {
       if (!content) return done(key, feed)
       pending.push({key: content.key.toString('hex'), metaKey: key.toString('hex')})
     })
@@ -163,6 +171,25 @@ function status (cb) {
 
   function reply () {
     cb(null, 'Uptime: ' + prettyTime(process.hrtime(started)) + '. Archiving ' + cnt + ' hypercores')
+  }
+}
+
+function statusKey (key, cb) {
+  ar.get(key, function (err, feed, content) {
+    if (err) return cb(err)
+    if (!content) content = {blocks: 0}
+    var need = feed.blocks + content.blocks
+    var have = need - blocksRemain(feed) - blocksRemain(content)
+    return cb(null, { key: key, need: need, have: have })
+  })
+
+  function blocksRemain (feed) {
+    if (!feed.bitfield) return 0
+    var remaining = 0
+    for (var i = 0; i < feed.blocks; i++) {
+      if (!feed.bitfield.get(i)) remaining++
+    }
+    return remaining
   }
 }
 
