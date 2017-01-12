@@ -79,6 +79,13 @@ if (argv.channel) {
     var channel = (to === argv.name) ? from : argv.channel
     var key = op.key
     switch (op.command) {
+      case 'track':
+        pending.push({key: key, channel: channel})
+        ar.add(new Buffer(key, 'hex'), {content: false}, function (err) {
+          if (err) return sendMessage(err, channel)
+          sendMessage(null, channel, 'Tracking ' + key)
+        })
+        return
       case 'add':
         pending.push({key: key, channel: channel})
         ar.add(new Buffer(key, 'hex'), function (err) {
