@@ -6,6 +6,7 @@ var mkdirp = require('mkdirp')
 var minimist = require('minimist')
 var defaults = require('datland-swarm-defaults')
 var disc = require('discovery-channel')(defaults({hash: false}))
+var archiverServer = require('archiver-server')
 var net = require('net')
 var pump = require('pump')
 var prettyBytes = require('pretty-bytes')
@@ -19,14 +20,17 @@ var argv = minimist(process.argv.slice(2), {
     server: 's',
     name: 'n',
     port: 'p',
-    ircPort: 'irc-port'
+    ircPort: 'irc-port',
+    announce: 'a'
   },
   default: {
     port: 3282,
     cwd: 'hypercore-archiver',
     name: 'archive-bot',
-    server: 'irc.freenode.net'
-  }
+    server: 'irc.freenode.net',
+    announce: false
+  },
+  boolean: ['announce']
 })
 
 mkdirp.sync(argv.cwd)
@@ -34,29 +38,34 @@ mkdirp.sync(argv.cwd)
 var started = process.hrtime()
 var pending = []
 var ar = archiver(argv.cwd)
-var server = net.createServer(function (socket) {
-  pump(socket, ar.replicate({passive: true}), socket)
-})
-
-server.listen(argv.port, function () {
-  ar.list().on('data', function (key) {
-    setTimeout(join, Math.floor(Math.random() * 30 * 1000))
-
-    function join () {
-      console.log('Joining', key.toString('hex'))
-      disc.join(ar.discoveryKey(key), server.address().port)
-    }
-  })
-
-  ar.changes(function (err, feed) {
-    if (err) throw err
-    disc.join(feed.discoveryKey, server.address().port)
-    console.log('Changes feed available at: ' + feed.key.toString('hex'))
-    console.log('Listening on port', server.address().port)
-  })
-})
-
 var client = null
+var server = null
+
+if (argv.announce) {
+  archiverServer(ar, {port: argv.port})
+} else {
+  server = net.createServer(function (socket) {
+    pump(socket, ar.replicate({passive: true}), socket)
+  })
+
+  server.listen(argv.port, function () {
+    ar.list().on('data', function (key) {
+      setTimeout(join, Math.floor(Math.random() * 30 * 1000))
+
+      function join () {
+        console.log('Joining', key.toString('hex'))
+        disc.join(ar.discoveryKey(key), server.address().port)
+      }
+    })
+
+    ar.changes(function (err, feed) {
+      if (err) throw err
+      disc.join(feed.discoveryKey, server.address().port)
+      console.log('Changes feed available at: ' + feed.key.toString('hex'))
+      console.log('Listening on port', server.address().port)
+    })
+  })
+}
 
 if (argv.channel) {
   var ircOpts = extend({}, argv, {
@@ -160,12 +169,12 @@ ar.on('archived', function (key, feed) {
 
 ar.on('remove', function (key) {
   console.log('Removing', key.toString('hex'))
-  disc.leave(ar.discoveryKey(key), server.address().port)
+  if (!argv.announce) disc.leave(ar.discoveryKey(key), server.address().port)
 })
 
 ar.on('add', function (key) {
   console.log('Adding', key.toString('hex'))
-  disc.join(ar.discoveryKey(key), server.address().port)
+  if (!argv.announce) disc.join(ar.discoveryKey(key), server.address().port)
 })
 
 function status (cb) {
