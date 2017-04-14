@@ -159,7 +159,7 @@ ar.on('archived', function (key, feed) {
     pending = pending.filter(function (obj) {
       if (key !== obj.key) return true
       if (key === obj.metaKey) return false // remove content key from pending
-      var msg = key + ' has been fully archived (' + prettyBytes(feed.bytes) + ')'
+      var msg = key + ' has been fully archived (' + prettyBytes(feed.byteLength) + ')'
       if (client) client.say(obj.channel, msg)
       console.log(msg)
       return false // remove meta key from pending
@@ -193,17 +193,17 @@ function status (cb) {
 function statusKey (key, cb) {
   ar.get(key, function (err, feed, content) {
     if (err) return cb(err)
-    if (!content) content = {blocks: 0}
-    var need = feed.blocks + content.blocks
+    if (!content) content = {length: 0}
+    var need = feed.length + content.length
     var have = need - blocksRemain(feed) - blocksRemain(content)
     return cb(null, { key: key, need: need, have: have })
   })
 
   function blocksRemain (feed) {
-    if (!feed.bitfield) return 0
+    if (!feed.length) return 0
     var remaining = 0
-    for (var i = 0; i < feed.blocks; i++) {
-      if (!feed.bitfield.get(i)) remaining++
+    for (var i = 0; i < feed.length; i++) {
+      if (!feed.hash(i)) remaining++
     }
     return remaining
   }
