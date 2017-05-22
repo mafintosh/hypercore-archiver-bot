@@ -1,13 +1,10 @@
 #!/usr/bin/env node
 
 var archiver = require('hypercore-archiver')
+var swarm = require('hypercore-archiver/swarm')
 var irc = require('irc')
 var mkdirp = require('mkdirp')
 var minimist = require('minimist')
-var defaults = require('datland-swarm-defaults')
-var disc = require('discovery-channel')(defaults({hash: false}))
-var archiverServer = require('archiver-server')
-var net = require('net')
 var pump = require('pump')
 var prettyBytes = require('pretty-bytes')
 var prettyTime = require('pretty-time')
@@ -19,53 +16,37 @@ var argv = minimist(process.argv.slice(2), {
     cwd: 'd',
     server: 's',
     name: 'n',
-    port: 'p',
-    ircPort: 'irc-port',
-    announce: 'a'
+    ircPort: 'irc-port'
+    // port: 'p',
+    // announce: 'a'
   },
   default: {
-    port: 3282,
+    // port: 3282, TODO: add to hyeprcore-archiver/swarm.js
     cwd: 'hypercore-archiver',
     name: 'archive-bot',
-    server: 'irc.freenode.net',
-    announce: false
-  },
-  boolean: ['announce']
+    server: 'irc.freenode.net'
+    // announce: false TODO: Not applicable anymore?
+  }
 })
 
 mkdirp.sync(argv.cwd)
 
 var started = process.hrtime()
-var pending = []
 var ar = archiver(argv.cwd)
+var server = swarm(ar)
 var client = null
-var server = null
+var pending = {}
 
-if (argv.announce) {
-  archiverServer(ar, {port: argv.port})
-} else {
-  server = net.createServer(function (socket) {
-    pump(socket, ar.replicate({passive: true}), socket)
-  })
-
-  server.listen(argv.port, function () {
-    ar.list().on('data', function (key) {
-      setTimeout(join, Math.floor(Math.random() * 30 * 1000))
-
-      function join () {
-        console.log('Joining', key.toString('hex'))
-        disc.join(ar.discoveryKey(key), server.address().port)
-      }
-    })
-
-    ar.changes(function (err, feed) {
-      if (err) throw err
-      disc.join(feed.discoveryKey, server.address().port)
-      console.log('Changes feed available at: ' + feed.key.toString('hex'))
-      console.log('Listening on port', server.address().port)
-    })
-  })
-}
+ar.on('sync', archiveSync)
+ar.on('changes', function () {
+  console.log('Changes feed available at', ar.changes.key.toString('hex'))
+})
+ar.on('remove', function (feed) {
+  console.log('Removing', feed.key.toString('hex'))
+})
+ar.on('add', function (feed) {
+  console.log('Adding', feed.key.toString('hex'))
+})
 
 if (argv.channel) {
   var ircOpts = extend({}, argv, {
@@ -89,14 +70,14 @@ if (argv.channel) {
     var key = op.key
     switch (op.command) {
       case 'track':
-        pending.push({key: key, channel: channel})
-        ar.add(new Buffer(key, 'hex'), {content: false}, function (err) {
-          if (err) return sendMessage(err, channel)
-          sendMessage(null, channel, 'Tracking ' + key)
-        })
+        sendMessage('TODO: Not supported?')
+        // ar.add(new Buffer(key, 'hex'), {content: false}, function (err) {
+        //   if (err) return sendMessage(err, channel)
+        //   sendMessage(null, channel, 'Tracking ' + key)
+        // })
         return
       case 'add':
-        pending.push({key: key, channel: channel})
+        pending[key] = {channel: channel}
         ar.add(new Buffer(key, 'hex'), function (err) {
           if (err) return sendMessage(err, channel)
           sendMessage(null, channel, 'Adding ' + key)
@@ -104,10 +85,7 @@ if (argv.channel) {
         return
       case 'rm':
       case 'remove':
-        pending = pending.filter(function (obj) {
-          // remove meta keys + content keys
-          return obj.key !== key && obj.metaKey !== key
-        })
+        if (pending[key]) delete pending[key]
         ar.remove(new Buffer(key, 'hex'), function (err) {
           if (err) return sendMessage(err, channel)
           sendMessage(null, channel, 'Removing ' + key)
@@ -135,75 +113,41 @@ function sendMessage (err, channel, msg) {
   client.say(channel, msg)
 }
 
-ar.on('archived', function (key, feed) {
-  key = key.toString('hex')
+function archiveSync (feed) {
+  var key = feed.key.toString('hex')
+  var channel = pending[key] ? pending[key].channel : null
+  delete pending[key]
+
   console.log('Feed archived', key)
-  pending = pending.filter(function (obj) {
-    if (key !== obj.key) return true
-    if (!obj.metaKey) {
-      waitForContent()
-      return true
-    }
-    done(obj.metaKey, feed)
-    return false
-  })
-
-  function waitForContent () {
-    ar.get(key, function (_, feed, content) {
-      if (!content) return done(key, feed)
-      pending.push({key: content.key.toString('hex'), metaKey: key.toString('hex')})
-    })
+  if (client && channel) {
+    var size = feed.content ? content.byteLength : feed.byteLength
+    var msg = key + ' has been fully archived (' + prettyBytes(size) + ')'
+    sendMessage(null, channel, msg)
   }
-
-  function done (key, feed) {
-    pending = pending.filter(function (obj) {
-      if (key !== obj.key) return true
-      if (key === obj.metaKey) return false // remove content key from pending
-      var msg = key + ' has been fully archived (' + prettyBytes(feed.bytes) + ')'
-      if (client) client.say(obj.channel, msg)
-      console.log(msg)
-      return false // remove meta key from pending
-    })
-  }
-})
-
-ar.on('remove', function (key) {
-  console.log('Removing', key.toString('hex'))
-  if (!argv.announce) disc.leave(ar.discoveryKey(key), server.address().port)
-})
-
-ar.on('add', function (key) {
-  console.log('Adding', key.toString('hex'))
-  if (!argv.announce) disc.join(ar.discoveryKey(key), server.address().port)
-})
+}
 
 function status (cb) {
   var cnt = 0
-  ar.list().on('data', ondata).on('end', reply).on('error', cb)
-
-  function ondata () {
-    cnt++
-  }
-
-  function reply () {
-    cb(null, 'Uptime: ' + prettyTime(process.hrtime(started)) + '. Archiving ' + cnt + ' hypercores')
-  }
+  ar.list(function (err, keys) {
+    if (err) return cb(err)
+    cb(null, 'Uptime: ' + prettyTime(process.hrtime(started)) + '. Archiving ' + keys.length + ' hypercores.')
+  })
 }
 
 function statusKey (key, cb) {
   ar.get(key, function (err, feed, content) {
     if (err) return cb(err)
-    if (!content) content = {blocks: 0}
-    var need = feed.blocks + content.blocks
+    if (!content) content = {length: 0}
+    var need = feed.length + content.length
     var have = need - blocksRemain(feed) - blocksRemain(content)
     return cb(null, { key: key, need: need, have: have })
   })
 
   function blocksRemain (feed) {
-    if (!feed.bitfield) return 0
+    if (!feed.length) return 0
     var remaining = 0
-    for (var i = 0; i < feed.blocks; i++) {
-      if (!feed.bitfield.get(i)) remaining++
+    for (var i = 0; i < feed.length; i++) {
+      if (!feed.has(i)) remaining++
     }
     return remaining
   }
