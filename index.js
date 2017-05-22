@@ -137,6 +137,11 @@ function status (cb) {
 function statusKey (key, cb) {
   ar.get(key, function (err, feed, content) {
     if (err) return cb(err)
+    if (content && content.length === 0) {
+      return content.update(function () {
+        statusKey(key, cb)
+      })
+    }
     if (!content) content = {length: 0}
     var need = feed.length + content.length
     var have = need - blocksRemain(feed) - blocksRemain(content)
