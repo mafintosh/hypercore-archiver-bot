@@ -98,7 +98,7 @@ if (argv.channel) {
             var need = status.need
             var have = status.have
             var progress = (have / need) * 100
-            sendMessage(null, channel, `Status ${key}: need ${need}, have ${have}, %${progress}`)
+            sendMessage(null, channel, `Status ${key}: ${progress.toFixed(2)}% archived (${have} of ${need} blocks)`)
           })
         }
         return status(function (err, msg) {
@@ -137,6 +137,11 @@ function status (cb) {
 function statusKey (key, cb) {
   ar.get(key, function (err, feed, content) {
     if (err) return cb(err)
+    if (content && content.length === 0 && metadata.length > 1) {
+      return content.update(function () {
+        statusKey(key, cb)
+      })
+    }
     if (!content) content = {length: 0}
     var need = feed.length + content.length
     var have = need - blocksRemain(feed) - blocksRemain(content)
