@@ -137,7 +137,7 @@ function status (cb) {
 function statusKey (key, cb) {
   ar.get(key, function (err, feed, content) {
     if (err) return cb(err)
-    if (content && content.length === 0 && metadata.length > 1) {
+    if (content && content.length === 0 && feed.length > 1) {
       return content.update(function () {
         statusKey(key, cb)
       })
