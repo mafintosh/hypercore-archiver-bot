@@ -9,6 +9,8 @@ var pump = require('pump')
 var prettyBytes = require('pretty-bytes')
 var prettyTime = require('pretty-time')
 var extend = require('xtend')
+var version = require('./package').version
+var archiverVersion = require('hypercore-archiver/package').version
 
 var argv = minimist(process.argv.slice(2), {
   alias: {
@@ -21,7 +23,7 @@ var argv = minimist(process.argv.slice(2), {
     // announce: 'a'
   },
   default: {
-    // port: 3282, TODO: add to hyeprcore-archiver/swarm.js
+    // port: 3282, TODO: add option to hyeprcore-archiver/swarm.js
     cwd: 'hypercore-archiver',
     name: 'archive-bot',
     server: 'irc.freenode.net'
@@ -70,7 +72,7 @@ if (argv.channel) {
     var key = op.key
     switch (op.command) {
       case 'track':
-        sendMessage('TODO: Not supported?')
+        sendMessage(new Error('TODO: Not implemented in hypercore-archiver yet. PR please =).'), channel)
         // ar.add(new Buffer(key, 'hex'), {content: false}, function (err) {
         //   if (err) return sendMessage(err, channel)
         //   sendMessage(null, channel, 'Tracking ' + key)
@@ -127,10 +129,12 @@ function archiveSync (feed) {
 }
 
 function status (cb) {
-  var cnt = 0
   ar.list(function (err, keys) {
     if (err) return cb(err)
-    cb(null, 'Uptime: ' + prettyTime(process.hrtime(started)) + '. Archiving ' + keys.length + ' hypercores.')
+    var msg = `Archiving ${keys.length} hypercores. `
+    msg += `Uptime: ${prettyTime(process.hrtime(started))}. `
+    msg += `bot version: ${version}, hypercore-archiver version: ${archiverVersion}.`
+    cb(null, msg)
   })
 }
 
