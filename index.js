@@ -9,6 +9,7 @@ var pump = require('pump')
 var prettyBytes = require('pretty-bytes')
 var prettyTime = require('pretty-time')
 var extend = require('xtend')
+var pages = require('random-access-page-files')
 var version = require('./package').version
 var archiverVersion = require('hypercore-archiver/package').version
 
@@ -28,13 +29,18 @@ var argv = minimist(process.argv.slice(2), {
     name: 'archive-bot',
     server: 'irc.freenode.net'
     // announce: false TODO: Not applicable anymore?
-  }
+  },
+  boolean: 'paged'
 })
 
 mkdirp.sync(argv.cwd)
 
+var pagedStorage = function pagedStorage (file) {
+  return pages(argv.cwd + '/' + file)
+}
+
 var started = process.hrtime()
-var ar = archiver(argv.cwd)
+var ar = archiver(argv.paged ? pagedStorage : argv.cwd)
 var server = swarm(ar)
 var client = null
 var pending = {}
