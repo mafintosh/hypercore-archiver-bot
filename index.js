@@ -91,6 +91,12 @@ if (argv.channel) {
           sendMessage(null, channel, 'Adding ' + key)
         })
         return
+      case 'import':
+        ar.import(new Buffer(key, 'hex'), function (err) {
+          if (err) return sendMessage(err, channel)
+          sendMessage(null, channel, 'Added all feeds from remote archiver instance ' + key)
+        })
+        return
       case 'rm':
       case 'remove':
         if (pending[key]) delete pending[key]
@@ -101,7 +107,7 @@ if (argv.channel) {
         return
       case 'status':
         if (key) {
-          return statusKey(key, function (err, status) {
+          return ar.status(key, function (err, status) {
             if (err) return sendMessage(err, channel)
             var need = status.need
             var have = status.have
@@ -142,30 +148,6 @@ function status (cb) {
     msg += `bot version: ${version}, hypercore-archiver version: ${archiverVersion}.`
     cb(null, msg)
   })
-}
-
-function statusKey (key, cb) {
-  ar.get(key, function (err, feed, content) {
-    if (err) return cb(err)
-    if (content && content.length === 0 && feed.length > 1) {
-      return content.update(function () {
-        statusKey(key, cb)
-      })
-    }
-    if (!content) content = {length: 0}
-    var need = feed.length + content.length
-    var have = need - blocksRemain(feed) - blocksRemain(content)
-    return cb(null, { key: key, need: need, have: have })
-  })
-
-  function blocksRemain (feed) {
-    if (!feed.length) return 0
-    var remaining = 0
-    for (var i = 0; i < feed.length; i++) {
-      if (!feed.has(i)) remaining++
-    }
-    return remaining
-  }
 }
 
 function parse (message) {

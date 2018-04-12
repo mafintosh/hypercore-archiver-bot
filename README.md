@@ -18,6 +18,7 @@ to run in paged storage mode use `--paged`
 !remove <key>/!rm <key>
 !status
 !status <key>
+!import <archiver-key>
 ```
 
 ## License
